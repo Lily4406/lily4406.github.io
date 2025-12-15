@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨越时区的对话：中国文物出海传播分析</title>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Framer Motion -->
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- 配置 Tailwind 主题 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'earth-green': '#606c38',
+                        'dark-green': '#283618',
+                        'cream': '#fefae0',
+                        'earth-yellow': '#dda15e',
+                        'bronze': '#bc6c25',
+                    },
+                    fontFamily: {
+                        sans: ['"Lantinghei SC"', '"FZLanTingHei"', '"Microsoft YaHei"', '"Noto Sans SC"', 'sans-serif'],
+                        serif: ['"Noto Serif SC"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #fefae0;
+            color: #283618;
+        }
+        /* 隐藏滚动条但保留功能 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #fefae0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #606c38;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #283618;
+        }
+        /* 全屏模态框样式 */
+        .fullscreen-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .fullscreen-modal-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .fullscreen-close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+        }
+        .fullscreen-close-btn:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        .iframe-container-wrapper {
+            position: relative;
+        }
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            background-color: rgba(96, 108, 56, 0.8);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.3s;
+        }
+        .fullscreen-btn:hover {
+            background-color: rgba(96, 108, 56, 1);
+        }
+            /* 图表并排布局样式 */
+        .figure-row {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+            margin: 16px 0;
+        }
+
+        .figure-item {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        /* 确保内容占满容器 */
+        .figure-item iframe,
+        .figure-item canvas,
+        .figure-item svg,
+        .figure-item .chart,
+        .figure-item .flourish-embed {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 移动端：自动换行成一列 */
+        @media (max-width: 768px) {
+            .figure-row {
+                flex-direction: column;
+            }
+        }
+</style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+        const { motion, useScroll, useTransform, AnimatePresence, useInView } = window.Motion;
+        
+        // Lucide Icons wrapper
+        const ArrowDown = ({ size = 24, className }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                <path d="M12 5v14M19 12l-7 7-7-7"/>
+            </svg>
+        );
+
+        // --- Components ---
+
+        // ScrollReveal Component
+        function ScrollReveal({ children, delay = 0, className = "" }) {
+            const ref = useRef(null);
+            const isInView = useInView(ref, { once: true, margin: "-10% 0px" });
+
+            return (
+                <div ref={ref} className={className}>
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                        transition={{ duration: 0.8, delay: delay, ease: "easeOut" }}
+                    >
+                        {children}
+                    </motion.div>
+                </div>
+            );
+        }
+
+
+        // FullscreenModal Component
+        function FullscreenModal({ isOpen, onClose, children }) {
+            useEffect(() => {
+                if (isOpen) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = 'auto';
+                }
+                return () => {
+                    document.body.style.overflow = 'auto';
+                };
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fullscreen-modal" onClick={onClose}>
+                    <div className="fullscreen-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="fullscreen-close-btn" onClick={onClose}>×</button>
+                        {children}
+                    </div>
+                </div>
+            );
+        }
+
+        // CanvaFullscreenContainer Component
+        function CanvaFullscreenContainer({ src }) {
+            const [isFullscreen, setIsFullscreen] = useState(false);
+
+            return (
+                <>
+                    <div className="my-8 p-6 bg-white rounded-lg shadow-sm iframe-container-wrapper">
+                        <button 
+                            className="fullscreen-btn" 
+                            onClick={() => setIsFullscreen(true)}
+                            title="全屏显示"
+                        >
+                            ⛶ 全屏
+                        </button>
+                        <div style={{position: 'relative', width: '100%', height: 0, paddingTop: '56.2225%', paddingBottom: 0, boxShadow: '0 2px 8px 0 rgba(63,69,81,0.16)', marginTop: '1.6em', marginBottom: '0.9em', overflow: 'hidden', borderRadius: '8px', willChange: 'transform'}}>
+                            <iframe loading="lazy" style={{position: 'absolute', width: '100%', height: '100%', top: 0, left: 0, border: 'none', padding: 0, margin: 0}} src={src} allowFullScreen allow="fullscreen"></iframe>
+                        </div>
+                    </div>
+                    <FullscreenModal isOpen={isFullscreen} onClose={() => setIsFullscreen(false)}>
+                        <iframe loading="lazy" style={{width: '100%', height: '100%', border: 'none'}} src={src} allowFullScreen allow="fullscreen"></iframe>
+                    </FullscreenModal>
+                </>
+            );
+        }
+
+        // FlourishChart Component
+        function FlourishChart({ src, type = "chart", className, alt = "Flourish visualization", title, index }) {
+            const containerRef = useRef(null);
+            const visualizationId = src.split("/").pop();
+
+            useEffect(() => {
+                const script = document.createElement("script");
+                script.src = "https://public.flourish.studio/resources/embed.js";
+                script.async = true;
+                document.body.appendChild(script);
+
+                return () => {
+                    // Cleanup if needed
+                };
+            }, [src]);
+
+            return (
+                <div className={`my-12 w-full ${className || ""}`}>
+                    {title && (
+                        <div className="mb-4 text-center">
+                            <span className="inline-block px-3 py-1 mb-2 text-xs font-bold tracking-wider text-cream bg-earth-green rounded-full">
+                                图表 {index}
+                            </span>
+                            <h4 className="text-lg font-bold text-dark-green">{title}</h4>
+                        </div>
+                    )}
+                    <div 
+                        ref={containerRef}
+                        className={`flourish-embed flourish-${type}`} 
+                        data-src={src}
+                    >
+                        <noscript>
+                            <img
+                                src={`https://public.flourish.studio/visualisation/${visualizationId}/thumbnail`}
+                                width="100%"
+                                alt={alt}
+                            />
+                        </noscript>
+                    </div>
+                </div>
+            );
+        }
+
+        // GaugeChart Component
+        function GaugeChart({ title, subTitle, chineseMediaCount, foreignMediaCount }) {
+            // 计算失衡比
+            const imbalanceRatio = useMemo(() => {
+                if (chineseMediaCount === 0) return 1;
+                return (foreignMediaCount - chineseMediaCount) / chineseMediaCount;
+            }, [chineseMediaCount, foreignMediaCount]);
+
+            const formattedRatio = (imbalanceRatio * 100).toFixed(1) + "%";
+
+            // 计算指针角度 (-90deg 到 90deg)
+            const rotation = useMemo(() => {
+                let ratio = imbalanceRatio;
+                if (ratio < -1) ratio = -1;
+                if (ratio > 1) ratio = 1;
+                return ratio * 90;
+            }, [imbalanceRatio]);
+
+            const isExtreme = imbalanceRatio <= -0.99 || imbalanceRatio >= 0.99;
+
+            // 颜色配置
+            let colorClass = "text-earth-yellow";
+            let strokeColor = "#dda15e";
+
+            if (imbalanceRatio < -0.05) {
+                colorClass = "text-bronze";
+                strokeColor = "#bc6c25";
+            } else if (imbalanceRatio > 0.05) {
+                colorClass = "text-earth-green";
+                strokeColor = "#606c38";
+            }
+
+            return (
+                <div className="flex flex-col items-center p-6 rounded-xl shadow-sm bg-white/80 backdrop-blur-sm border border-earth-yellow/30">
+                    <h3 className="text-xl font-bold text-dark-green mb-1">{title}</h3>
+                    {subTitle && <p className="text-sm text-earth-green/80 mb-6 text-center h-10">{subTitle}</p>}
+
+                    {/* 仪表盘区域 */}
+                    <div className="relative w-64 h-32 mb-8 overflow-hidden">
+                        {/* 背景半圆 */}
+                        <div className="absolute bottom-0 left-0 w-full h-full bg-cream rounded-t-full border-t border-l border-r border-earth-yellow/50"></div>
+                        
+                        {/* 刻度线 */}
+                        <div className="absolute bottom-0 left-1/2 w-full h-full -translate-x-1/2 origin-bottom">
+                            {/* 0点 */}
+                            <div className="absolute bottom-0 left-1/2 w-0.5 h-4 bg-earth-yellow -translate-x-1/2"></div>
+                            {/* -50% */}
+                            <div className="absolute bottom-0 left-1/2 w-0.5 h-3 bg-earth-yellow/50 -translate-x-1/2 origin-bottom -rotate-45 transform translate-y-[-50%]"></div>
+                            {/* +50% */}
+                            <div className="absolute bottom-0 left-1/2 w-0.5 h-3 bg-earth-yellow/50 -translate-x-1/2 origin-bottom rotate-45"></div>
+                        </div>
+
+                        {/* 标签 */}
+                        <div className="absolute bottom-2 left-4 text-xs font-mono text-earth-green">-100%</div>
+                        <div className="absolute bottom-2 right-4 text-xs font-mono text-earth-green">+100%</div>
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-mono text-earth-green">0%</div>
+
+                        {/* 指针 */}
+                        <motion.div
+                            className="absolute bottom-0 left-1/2 w-1 h-full origin-bottom"
+                            initial={{ rotate: 0 }}
+                            whileInView={{ 
+                                rotate: rotation,
+                                scale: isExtreme ? [1, 1.05, 1] : 1,
+                            }}
+                            transition={{
+                                rotate: { duration: 1, ease: "easeOut" },
+                                scale: isExtreme ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}
+                            }}
+                            style={{ x: "-50%" }}
+                        >
+                            <div 
+                                className="w-full h-[90%] mx-auto rounded-t-full"
+                                style={{ backgroundColor: strokeColor }}
+                            ></div>
+                            
+                            {isExtreme && (
+                                <motion.div
+                                    className="absolute top-0 left-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
+                                    style={{ backgroundColor: strokeColor }}
+                                    animate={{ opacity: [0.4, 0.8, 0.4] }}
+                                    transition={{ repeat: Infinity, duration: 1.5 }}
+                                />
+                            )}
+                        </motion.div>
+
+                        {/* 中心圆点 */}
+                        <div className="absolute bottom-0 left-1/2 w-4 h-4 bg-cream border-2 border-earth-yellow rounded-full -translate-x-1/2 translate-y-1/2 z-10"></div>
+                    </div>
+
+                    {/* 数据显示 */}
+                    <div className="text-center space-y-2 w-full">
+                        <div className="flex items-baseline justify-center gap-2">
+                            <span className="text-sm text-earth-green">失衡比</span>
+                            <span className={`text-3xl font-mono font-bold ${colorClass}`}>
+                                {imbalanceRatio > 0 ? "+" : ""}{formattedRatio}
+                            </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-8 mt-4 text-sm px-4">
+                            <div className="text-right border-r border-earth-yellow/30 pr-4">
+                                <div className="text-earth-green/70 text-xs mb-1">中媒报道</div>
+                                <div className="font-semibold text-dark-green">{chineseMediaCount}</div>
+                            </div>
+                            <div className="text-left pl-4">
+                                <div className="text-earth-green/70 text-xs mb-1">外媒报道</div>
+                                <div className="font-semibold text-dark-green">{foreignMediaCount}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GaugeChartGroup() {
+            const exhibitions = [
+                {
+                    title: "中国唐",
+                    subTitle: "一个多元开放的朝代 (7至10世纪)",
+                    chineseMediaCount: 29,
+                    foreignMediaCount: 9,
+                },
+                {
+                    title: "镕古铸今",
+                    subTitle: "宋元明清铜器特展",
+                    chineseMediaCount: 12,
+                    foreignMediaCount: 13,
+                },
+                {
+                    title: "秦汉文明展览",
+                    subTitle: "秦汉文明",
+                    chineseMediaCount: 17,
+                    foreignMediaCount: 18,
+                },
+                {
+                    title: "美成天龙",
+                    subTitle: "天龙山石窟数字复原国际巡展",
+                    chineseMediaCount: 6,
+                    foreignMediaCount: 0,
+                },
+            ];
+
+            return (
+                <div className="my-12">
+                    <div className="mb-4 text-center">
+                        <span className="inline-block px-3 py-1 mb-2 text-xs font-bold tracking-wider text-cream bg-earth-green rounded-full">
+                            图表 5
+                        </span>
+                        <h4 className="text-lg font-bold text-dark-green">四个展览的舆论失衡比对比</h4>
+                    </div>
+                    <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
+                        {exhibitions.map((exhibition) => (
+                            <GaugeChart
+                                key={exhibition.title}
+                                {...exhibition}
+                            />
+                        ))}
+                    </div>
+                    <div className="mt-8 text-center text-sm text-earth-green/80">
+                        <div className="flex justify-center gap-6">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-bronze"></div>
+                                <span>左偏：中媒主导</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-earth-green"></div>
+                                <span>右偏：外媒主导</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Section Components
+        function Section({ children, className = "", id }) {
+            return (
+                <section id={id} className={`py-24 px-4 md:px-8 max-w-5xl mx-auto ${className}`}>
+                    <ScrollReveal>
+                        {children}
+                    </ScrollReveal>
+                </section>
+            );
+        }
+
+        function SectionTitle({ children, className = "" }) {
+            return (
+                <h2 className={`text-3xl md:text-4xl font-serif font-bold text-dark-green mb-12 ${className}`}>
+                    {children}
+                </h2>
+            );
+        }
+
+        function SectionText({ children, className = "" }) {
+            return (
+                <div className={`space-y-6 text-lg md:text-xl leading-relaxed text-dark-green/90 ${className}`}>
+                    {children}
+                </div>
+            );
+        }
+
+        // TableOfContents Component
+        function TableOfContents() {
+            const [activeId, setActiveId] = useState("");
+            const [isVisible, setIsVisible] = useState(false);
+
+            const items = [
+                { id: "intro", label: "引言" },
+                { id: "chapter-1", label: "01 繁忙的单向航线" },
+                { id: "chapter-2", label: "02 文化出海的时差" },
+                { id: "chapter-2-1", label: "2.1 舆论温差" },
+                { id: "chapter-2-2", label: "2.2 四面钟表" },
+                { id: "chapter-3", label: "03 校准传播时差" },
+            ];
+
+            useEffect(() => {
+                const handleScroll = () => {
+                    setIsVisible(window.scrollY > window.innerHeight * 0.8);
+                    const sections = items.map(item => document.getElementById(item.id));
+                    const scrollPosition = window.scrollY + window.innerHeight / 3;
+
+                    for (let i = sections.length - 1; i >= 0; i--) {
+                        const section = sections[i];
+                        if (section && section.offsetTop <= scrollPosition) {
+                            setActiveId(items[i].id);
+                            break;
+                        }
+                    }
+                };
+
+                window.addEventListener("scroll", handleScroll);
+                return () => window.removeEventListener("scroll", handleScroll);
+            }, []);
+
+            const scrollToSection = (id) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    window.scrollTo({
+                        top: element.offsetTop - 100,
+                        behavior: "smooth",
+                    });
+                }
+            };
+
+            return (
+                <AnimatePresence>
+                    {isVisible && (
+                        <motion.nav
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="fixed right-4 top-1/2 -translate-y-1/2 z-50 hidden lg:block"
+                        >
+                            <ul className="space-y-4 border-l-2 border-earth-green/20 pl-4">
+                                {items.map((item) => (
+                                    <li key={item.id}>
+                                        <button
+                                            onClick={() => scrollToSection(item.id)}
+                                            className={`text-sm text-left transition-all duration-300 hover:text-earth-green ${
+                                                activeId === item.id
+                                                    ? "font-bold text-dark-green scale-105 origin-left"
+                                                    : "text-dark-green/40 font-light"
+                                            }`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </motion.nav>
+                    )}
+                </AnimatePresence>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const { scrollYProgress } = useScroll();
+            const opacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
+            const scale = useTransform(scrollYProgress, [0, 0.1], [1, 0.9]);
+
+            return (
+                <div className="min-h-screen bg-cream text-dark-green overflow-x-hidden font-sans">
+                    <TableOfContents />
+                    
+                    {/* Hero Section */}
+                    <header className="relative h-screen flex flex-col items-center justify-center text-center px-4">
+                        <motion.div style={{ opacity, scale }} className="max-w-4xl mx-auto space-y-8">
+                            <ScrollReveal>
+                                <h1 className="text-5xl md:text-7xl font-serif font-bold leading-tight text-dark-green">
+                                    跨越几万公里的“独白”
+                                </h1>
+                            </ScrollReveal>
+                            <ScrollReveal delay={0.2}>
+                                <p className="text-2xl md:text-3xl font-light text-earth-green italic">
+                                    除了“上下五千年”，世界还读懂了什么？
+                                </p>
+                            </ScrollReveal>
+                            <ScrollReveal delay={0.4}>
+                                <div className="w-24 h-1 bg-bronze mx-auto my-8 rounded-full" />
+                            </ScrollReveal>
+                            <ScrollReveal delay={0.6}>
+                                <p className="text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-dark-green/80">
+                                    中国文物走了几万公里，跨越了许多个时区，但真正艰难的旅程，是把传播的指针，从“惯性叙事”的北京时间，精准校准到受众所在的“当地时间”。
+                                </p>
+                            </ScrollReveal>
+                        </motion.div>
+
+                        <motion.div 
+                            style={{ opacity }}
+                            animate={{ y: [0, 10, 0] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                            className="absolute bottom-12 left-1/2 -translate-x-1/2 text-earth-green"
+                        >
+                            <ArrowDown size={32} />
+                        </motion.div>
+                    </header>
+
+                    {/* Introduction */}
+                    <Section id="intro">
+                        <SectionText>
+                            <p>
+                                如果将过去十年中国文物出海的轨迹连成线，其里程足以绕行地球赤道二十余圈。从巴黎到纽约，从开罗到布达佩斯，中国博物馆的“航班”构建了一张日益密集的全球航线图。
+                            </p>
+                            <p>
+                                然而，当我们把目光从地理坐标移向传播坐标，一个核心矛盾浮现：我们跨越了物理距离，却陷入认知的“时差”。国内舆论场的关注与海外受众的实际反响，常常不在一个频道。这就像一场跨越时区的旅程——当我们在“北京时间”讲述时，世界可能正以另一种频率接收。
+                            </p>
+                        </SectionText>
+                    </Section>
+
+                    {/* Chapter 1 */}
+                    <Section id="chapter-1">
+                        <div className="flex items-center gap-4 mb-8">
+                            <span className="text-6xl font-serif font-bold text-earth-yellow/20">01</span>
+                            <SectionTitle className="mb-0">08:00 北京时间，繁忙的单向航线</SectionTitle>
+                        </div>
+                        
+                        <SectionText>
+                            <p>
+                                清晨，一条无形的航线开始它日复一日的忙碌。过去十年间，从中国起飞的航班里，承载了一批特殊的“乘客”——一件件国宝跨越山海，奔赴一场又一场与世界约定的文化会面。
+                            </p>
+                            <p>
+                                基于对公开可查的重点展览信息的追踪，我们试图描摹这条空中文化之路的运行轨迹。尽管无法穷尽每一个航班，但透过这些具有代表性的样本，一个清晰的脉搏已然显现：无论外界环境如何变化，中国文化出海的意愿与行动，始终在寻求突破，并展现出极强的韧性。
+                            </p>
+                        </SectionText>
+
+                        <FlourishChart 
+                            src="visualisation/26445507" 
+                            type="map" 
+                            alt="全球展览地理分布图" 
+                            index="1"
+                            title="全球展览地理分布图"
+                        />
+
+                        <SectionText>
+                            <p>
+                                然而，现有数据所勾勒出的空间图景，呈现出一幅高度集中而非广泛覆盖的画卷。航班目的地高度集中于巴黎、纽约、伦敦等我们熟悉的国际文化枢纽。相比之下，通往更广阔地域——例如南半球或“一带一路”沿线众多国家的航线则显得稀疏得多。
+                            </p>
+                        </SectionText>
+
+                        <div className="grid md:grid-cols-2 gap-8 my-12">
+                            <div>
+                                <FlourishChart 
+                                    src="visualisation/26441096" 
+                                    type="bubble-chart" 
+                                    alt="各国数量差异" 
+                                    index="2"
+                                    title="各国展览数量差异"
+                                />
+                            </div>
+                            <div>
+                                <FlourishChart 
+                                    src="visualisation/26666692" 
+                                    type="map" 
+                                    alt="日本展览分布" 
+                                    index="3"
+                                    title="日本展览分布详情"
+                                />
+                            </div>
+                        </div>
+
+                        <SectionText>
+                            <p className="font-bold text-dark-green">
+                                因此，这条航线呈现出一个值得深思的图景：起飞的频次在增加，但飞行的目的地与运载的“货物”，却显示出某种程度的固化路径。
+                            </p>
+                        </SectionText>
+                    </Section>
+
+                    {/* Chapter 2 */}
+                    <Section id="chapter-2">
+                        <div className="flex items-center gap-4 mb-8">
+                            <span className="text-6xl font-serif font-bold text-earth-yellow/20">02</span>
+                            <SectionTitle className="mb-0">环球时钟：文化出海的“时差”图谱</SectionTitle>
+                        </div>
+
+                        <SectionText>
+                            <p>
+                                为了更精准地透视中国文物出海的实际效能，我们避开了宏观数据的平均值，在茫茫航线中锁定了四个极具代表性的“坐标点”。
+                            </p>
+                        </SectionText>
+
+                        <FlourishChart 
+                            src="visualisation/26719258" 
+                            type="cards" 
+                            alt="四个展览案例" 
+                            index="4"
+                            title="四个典型展览案例概览"
+                        />
+
+                        <SectionText>
+                            <div id="chapter-2-1">
+                                <h3 className="text-2xl font-serif font-bold mt-12 mb-6">2.1 特征总览：失衡的“舆论温差”</h3>
+                                <p>
+                                    这不仅仅是四个展，更是中国文物出海在不同时区、不同语境下遭遇的四种典型面相：高规格的政治叙事、审美驱动的流量突围、经典IP的惯性巡演，以及技术导向的形式创新。
+                                </p>
+                            </div>
+                            
+                            <div className="grid md:grid-cols-2 gap-8 my-8">
+                                <div className="bg-white/50 p-6 rounded-lg border border-earth-green/10">
+                                    <h4 className="font-bold text-lg mb-2">1. 巴黎的正午：政治权重的巅峰</h4>
+                                    <p className="text-sm">中国·唐——一个多元开放的朝代 (2024.11-2025.03)</p>
+                                    <p className="mt-2 text-sm opacity-80">这是一个含金量极高的外交动作，恰如“正午”般政治光线强烈。恰逢中法建交60周年，展览由两国文化部直接指导，并获得两国元首共同题写序言的礼遇。它肩负着延续十年前“汉风”展的使命，旨在通过展示唐代的包容与繁荣，完成一次国家级叙事下的“文明互鉴”。
+</p>
+                                </div>
+                                <div className="bg-white/50 p-6 rounded-lg border border-earth-green/10">
+                                    <h4 className="font-bold text-lg mb-2">2. 纽约的下午：审美共振的黑马</h4>
+                                    <p className="text-sm">镕古铸新——宋元明清铜器特展 (2025.02-2025.09)</p>
+                                    <p className="mt-2 text-sm opacity-80"> 这是一个跨越45年的回响，如同轻松活跃的“下午茶”*时段。继1980年“伟大的中国青铜时代”后，中美顶级机构再次联手。不同于以往对礼乐制度的严肃阐释，该展试图通过200余件展品的视觉美学，填补西方对中国晚期青铜器的认知空白，是一次基于审美共通性的“人流突围”。
+</p>
+                                </div>
+                                <div className="bg-white/50 p-6 rounded-lg border border-earth-green/10">
+                                    <h4 className="font-bold text-lg mb-2">3. 布达佩斯的晚宴：经典 IP 的巡演</h4>
+                                    <p className="text-sm">秦汉文明展览 (2024.11开幕-今)</p>
+                                    <p className="mt-2 text-sm opacity-80">这是“国家名片”的标准化输出，宛如一场隆重但传统的“正式晚宴”。兵马俑作为中国文博界广泛认知的符号，再次承担起“记忆锚点”的重任。在多国政要的见证下，官方试图用这一经典IP，在多瑙河畔唤醒对中国大一统历史的宏大记忆。
+</p>
+                                </div>
+                                <div className="bg-white/50 p-6 rounded-lg border border-earth-green/10">
+                                    <h4 className="font-bold text-lg mb-2">4. 开罗的深夜：形式创新的试水</h4>
+                                    <p className="text-sm">美成天龙——天龙山石窟数字复原展 (2023.09)</p>
+                                    <p className="mt-2 text-sm opacity-80">这是一次“无实物”的大胆尝试，却仿佛置身于“深夜”的静默。在金字塔的国度，展览摒弃了实体文物运输，依托全息影像和幻影成像技术，试图用“数字科技+东方美学”的新形式，叩开古老文明的大门。
+</p>
+                                </div>
+                            </div>
+
+                            <p>
+                                而为了直观呈现传播上的错位，我们引入了 <strong>“舆论失衡比”</strong> 这一指标。
+                                <br/>
+                                <span className="text-sm font-mono bg-earth-green/10 px-2 py-1 rounded">舆论失衡比 = (外媒报道量 - 中媒报道量) / 中媒报道量</span>
+                            </p>
+                        </SectionText>
+
+                        <GaugeChartGroup />
+
+                        <SectionText>
+                            <p>
+                                这组数据揭示了一个核心发现：我们发出的信号强度，并不等同于世界接收到的信号强度。高昂的政治与文化投入，未必能直接兑换为对等的国际舆论共鸣。这种传播上的“时差”，在政治叙事和传统经典叙事中表现得尤为显著，而在聚焦审美、引发社交网络趣味的案例中则有所缓和。
+                                <br/>
+                                <br/>
+                                接下来，我们将深入每一个坐标点，解码这股“温差”背后的具体成因。
+
+                            </p>
+                        </SectionText>
+                    </Section>
+
+                    {/* Chapter 2.2 */}
+                    <Section id="chapter-2-2">
+                        <SectionTitle>2.2 四面钟表：各自的时间如何走得不同</SectionTitle>
+                        
+                        {/* Paris */}
+                        <div className="mb-24">
+                            <h3 className="text-2xl font-serif font-bold text-bronze mb-6 flex items-center gap-2">
+                                <span className="text-3xl">🕛</span> 12:00 巴黎：被过滤的“政治高光”
+                            </h3>
+                            <SectionText>
+                                <p>
+                                    在巴黎的“正午”，我们试图传递复合的“政治-文化”信号，但经过跨文化的折射，高密度的政治意涵被当地受众“过滤”了。他们礼貌地避开了宏大的外交辞令，只选择接收那些最具普世美感的艺术细节。
+                                </p>
+                            </SectionText>
+                              <CanvaFullscreenContainer src="https://www.canva.cn/design/DAG7jkX_Ycc/q-nnDoxuCLx01D9tOt8JUg/view?embed" />
+                            <div className="space-y-12 my-8">
+                                <FlourishChart 
+                                    src="visualisation/26815148" 
+                                    type="scatter" 
+                                    alt="散点图可视化" 
+                                    index="6"
+                                    title="巴黎展览媒体报道发布时间分布"
+                                />
+                           
+                                <div className="figure-row">
+                                <div className="figure-item">
+                                    <FlourishChart 
+                                    src="visualisation/26718173" 
+                                    type="chart" 
+                                    alt="巴黎展览媒体报道分析" 
+                                    index="7"
+                                    title="巴黎展览媒体报道分析"
+                                />
+                                </div>
+                                <div className="figure-item">
+                                    <FlourishChart 
+                                    src="visualisation/26802200" 
+                                    type="hierarchy" 
+                                    alt="巴黎展览社交媒体情感分析" 
+                                    index="8"
+                                    title="巴黎展览社交媒体情感分析"
+                                />
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+
+                        {/* New York */}
+                        <div className="mb-24">
+                            <h3 className="text-2xl font-serif font-bold text-bronze mb-6 flex items-center gap-2">
+                                <span className="text-3xl">🕒</span> 15:00 纽约：意外同频的“流量下午茶”
+                            </h3>
+                            <SectionText>
+                                <p>
+                                    下午三点，是属于社交网络的松弛时刻。在大都会博物馆，一场原本严肃的青铜器展，意外击中了年轻人的兴趣点。纽约的案例证明，在互联网语境下，去崇高化的“视觉冲击”比严肃的说教更能打破文化壁垒。当受众觉得文物“有趣”时，传播的时差便消失了。
+
+                                </p>
+                            </SectionText>
+                             <CanvaFullscreenContainer src="https://www.canva.cn/design/DAG7jghNHMM/L0xZS1VIak1_ySqux2Zuyg/view?embed" />
+                            <div className="space-y-12 my-8">
+                                <div className="figure-row">
+                                <div className="figure-item">
+                                    <FlourishChart 
+                                    src="visualisation/26701046" 
+                                    type="bubble-chart" 
+                                    alt="纽约展览媒体报道高频词" 
+                                    index="9"
+                                    title="纽约展览媒体报道高频词"
+                                />
+                                </div>
+                                <div className="figure-item">
+                                    <FlourishChart 
+                                    src="visualisation/26722917" 
+                                    type="hierarchy" 
+                                    alt="纽约展览报道主题高频词" 
+                                    index="10"
+                                    title="纽约展览报道主题高频词"
+                                />
+                                </div>
+                            </div>
+                                 <FlourishChart 
+                                    src="visualisation/26718629" 
+                                    type="scatter" 
+                                    alt="纽约展览社媒发布时间分布" 
+                                    index="11"
+                                    title="纽约展览社媒发布时间分布"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Budapest */}
+                        <div className="mb-24">
+                            <h3 className="text-2xl font-serif font-bold text-bronze mb-6 flex items-center gap-2">
+                                <span className="text-3xl">🕗</span> 20:00 布达佩斯：疲惫的“经典晚宴”
+                            </h3>
+                            <SectionText>
+                                <p>
+                                    晚间八点，多瑙河畔。兵马俑作为中国文化的“老牌巨星”，出席了一场高规格但略显疲惫的晚宴。巨大的数据鸿沟表明，兵马俑面临着严重的“边际效应递减”——世界认识这个符号，但对“又一次展览”缺乏新鲜感。如果不赋予经典IP新的叙事，它只能被作为一种旅游景观消费，而非文化内容被阅读。
+                                </p>
+                            </SectionText>
+                            <div className="my-12 w-full">
+                                    <div className="mb-4 text-center">
+                                        <span className="inline-block px-3 py-1 text-sm font-bold tracking-wider text-cream bg-earth-green rounded-full">
+                                            图表 12
+                                        </span>
+                                        <h4 className="text-lg font-bold text-dark-green">布达佩斯展览报道时间与媒体类型</h4>
+                                    </div>
+                                    <div className="w-full rounded-2xl overflow-hidden shadow-lg border border-earth-green/20 bg-cream">
+                                        <div className="relative w-full" style={{height: "560px"}}>
+                                            <iframe
+                                                loading="lazy"
+                                                style={{width: "100%", height: "100%", border: "none"}}
+                                                src="timeline%20trend.html"
+                                                title="timeline-trend"
+                                            ></iframe>
+                                        </div>
+                                    </div>
+                                </div>
+                            <div className="space-y-12 my-8">
+                                <FlourishChart 
+                                    src="visualisation/26719695" 
+                                    type="hierarchy" 
+                                    alt="报道主题高频词分析" 
+                                    index="13"
+                                    title="布达佩斯展览报道主题高频词"
+                                />
+                                <FlourishChart 
+                                    src="visualisation/26697296" 
+                                    type="chart" 
+                                    alt="社交媒体情感分析" 
+                                    index="14"
+                                    title="布达佩斯展览社交媒体情感分析"
+                                />
+                                <FlourishChart 
+                                    src="visualisation/26677355" 
+                                    type="chart" 
+                                    alt="社交媒体 TF-IDF 文本分析" 
+                                    index="15"
+                                    title="布达佩斯展览社交媒体文本分析"
+                                />
+                            </div>
+                            <CanvaFullscreenContainer src="https://www.canva.cn/design/DAG7jkUZa0k/z06sDKeRKzzKg6vKkyDkIQ/view?embed" />
+                        </div>
+
+                        {/* Cairo */}
+                        <div className="mb-24">
+                            <h3 className="text-2xl font-serif font-bold text-bronze mb-6 flex items-center gap-2">
+                                <span className="text-3xl">🕑</span> 02:00 开罗：静默的“数字午夜”
+                            </h3>
+                            <SectionText>
+                                <p>
+                                    凌晨两点，信号满格，但无人接听。在埃及，这场依托高科技的数字展，陷入了传播的“盲区”。在一个拥有金字塔等伟大实体遗迹的国度，缺乏实物载体和情感连接的“数字光影”，未能叩开受众的心门。这一极端案例警示我们：技术只是载体，若无有效的故事内核与在地化的情感连接，再炫酷的形式也只是赛博空间里的电子独白。
+
+                                </p>
+                            </SectionText>
+                            <div className="space-y-12 my-8">
+                                <FlourishChart 
+                                    src="visualisation/26697814" 
+                                    type="chart" 
+                                    alt="媒体报道高频词分析" 
+                                    index="16"
+                                    title="开罗展览媒体报道高频词"
+                                />
+                                <div className="my-12 w-full">
+                                    <div className="mb-4 text-center">
+                                        <span className="inline-block px-3 py-1 text-sm font-bold tracking-wider text-cream bg-earth-green rounded-full">
+                                            图表 17
+                                        </span>
+                                        <h4 className="text-lg font-bold text-dark-green">开罗展览报道全览</h4>
+                                    </div>
+                                    <div className="w-full rounded-2xl overflow-hidden shadow-lg border border-earth-green/20 bg-cream">
+                                        <div className="relative w-full" style={{height: "720px"}}>
+                                            <iframe
+                                                loading="lazy"
+                                                style={{width: "100%", height: "100%", border: "none"}}
+                                                src="beautiful_table_updated%20(1).html"
+                                                title="beautiful-table-updated"
+                                            ></iframe>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>     
+                    </Section>
+
+                    {/* Chapter 3 */}
+                    <Section id="chapter-3">
+                        <div className="flex items-center gap-4 mb-8">
+                            <span className="text-6xl font-serif font-bold text-earth-yellow/20">03</span>
+                            <SectionTitle className="mb-0">调表时刻：校准传播的“时差”</SectionTitle>
+                        </div>
+
+                        <SectionText>
+                            <p>
+                                弥合这场漫长的“认知时差”，要求我们将指针从“以我为主的独白”，校准至“以受众为中心的对话”。
+                            </p>
+                            <ul className="list-disc pl-6 space-y-4 mt-4">
+                                <li>
+                                    <strong>地理布局校准：</strong> 我们应将更多资源投向展览稀少的“蓝海”区域，如非洲、南美及中东欧，以视觉强、故事明的文物完成亲切的初始认知铺设。在“一带一路”沿线，则需从单向展示转向双向叙事，通过联合策展共述文明交融的历史，激发“我们”的情感认同。而对于欧美日等成熟市场，则必须超越静态陈列，以沉浸式体验重新激活观众的感知。
+                                </li>
+                                <li>
+                                    <strong>传播语法校准：</strong> 纽约案例证明，视觉趣味远比厚重的历史解说更能率先触达人心。未来的传播，应是为每件文物预制可在短视频平台上“秒懂”与“秒传”的视觉种子，并设计开放的话题框架，鼓励二次创作，使展览本身成为一个可持续发酵的、具有生命力的社交话题。
+                                </li>
+                                <li>
+                                    <strong>评估体系校准：</strong> 我们必须摒弃对“送出数量”的自我度量，转而建立一套倾听外部回响的机制：关注国际媒体的解读深度而非转载篇数，分析社交媒体上非中文用户的真实互动与创作，收集跨文化观众在现场的停留时间与定性反馈。唯有依据这些真实的“共鸣度”数据来复盘与迭代，我们的下一次出发才能更加精准。
+                                </li>
+                            </ul>
+                            <div className="mt-12 p-8 bg-dark-green text-cream rounded-lg text-center">
+                                <p className="text-2xl font-serif font-bold">
+                                    “真正的挑战不在于运送文物抵达远方，<br/>而在于让文化的价值在远方获得回响。”
+                                </p>
+                            </div>
+                        </SectionText>
+                    </Section>
+
+                    {/* Footer */}
+                    <footer className="py-12 text-center text-dark-green/60 text-sm">
+                        <p>© 2025秋 第八小组 数据新闻期末项目 | 跨越时区的对话</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
